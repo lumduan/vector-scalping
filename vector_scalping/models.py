@@ -169,7 +169,7 @@ class StrategyConfig(BaseModel):
     vector_period: int = Field(5, description="Number of candles for vector calculation")
     percentile_lookback: int = Field(100, description="Lookback period for percentile ranking")
     signal_threshold: float = Field(60.0, ge=0, le=100, description="Minimum percentile for signals")
-    direction_threshold: float = Field(0.3, ge=0, le=1, description="Minimum direction for signals")
+    direction_threshold: float = Field(0.0005, ge=0, le=1, description="Minimum direction for signals (adjusted for corrected mathematical formulas)")
     tf5_weight: float = Field(0.7, ge=0, le=1, description="Weight for 5-minute timeframe")
     tf15_weight: float = Field(0.3, ge=0, le=1, description="Weight for 15-minute timeframe")
     tf5_direction_weight: float = Field(0.6, ge=0, le=1, description="5-min direction weight")
