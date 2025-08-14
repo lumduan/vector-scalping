@@ -75,6 +75,91 @@ class TestOHLCVData:
                 close=1.1025,
                 volume=-100.0  # Negative volume should fail
             )
+    
+    def test_timestamp_iso_string_input(self):
+        """Test timestamp field accepts ISO 8601 date string input."""
+        # Test with basic ISO format
+        data = OHLCVData(
+            timestamp="2022-01-01T00:00:00",
+            open=1.1000,
+            high=1.1050,
+            low=1.0950,
+            close=1.1025,
+            volume=1000.0
+        )
+        
+        # Timestamp should be converted to int
+        assert isinstance(data.timestamp, int)
+        assert data.timestamp == 1640995200  # 2022-01-01 00:00:00 UTC
+        
+        # Datetime property should work correctly
+        assert data.datetime.year == 2022
+        assert data.datetime.month == 1
+        assert data.datetime.day == 1
+    
+    def test_timestamp_iso_string_with_z(self):
+        """Test timestamp field accepts ISO 8601 date string with Z suffix."""
+        data = OHLCVData(
+            timestamp="2022-01-01T00:00:00Z",
+            open=1.1000,
+            high=1.1050,
+            low=1.0950,
+            close=1.1025,
+            volume=1000.0
+        )
+        
+        assert isinstance(data.timestamp, int)
+        assert data.timestamp == 1640995200
+    
+    def test_timestamp_int_input(self):
+        """Test timestamp field still accepts integer Unix timestamp."""
+        data = OHLCVData(
+            timestamp=1640995200,
+            open=1.1000,
+            high=1.1050,
+            low=1.0950,
+            close=1.1025,
+            volume=1000.0
+        )
+        
+        assert isinstance(data.timestamp, int)
+        assert data.timestamp == 1640995200
+    
+    def test_timestamp_invalid_string_format(self):
+        """Test that invalid date string formats are rejected."""
+        with pytest.raises(ValidationError, match="Invalid ISO 8601 date format"):
+            OHLCVData(
+                timestamp="2022-01-01 00:00:00",  # Wrong format, should be T separator
+                open=1.1000,
+                high=1.1050,
+                low=1.0950,
+                close=1.1025,
+                volume=1000.0
+            )
+    
+    def test_timestamp_negative_int(self):
+        """Test that negative Unix timestamps are rejected."""
+        with pytest.raises(ValidationError, match="Unix timestamp must be non-negative"):
+            OHLCVData(
+                timestamp=-1,
+                open=1.1000,
+                high=1.1050,
+                low=1.0950,
+                close=1.1025,
+                volume=1000.0
+            )
+    
+    def test_timestamp_invalid_type(self):
+        """Test that invalid timestamp types are rejected."""
+        with pytest.raises(ValidationError):
+            OHLCVData(
+                timestamp=1640995200.5,  # Float not allowed
+                open=1.1000,
+                high=1.1050,
+                low=1.0950,
+                close=1.1025,
+                volume=1000.0
+            )
 
 
 class TestPriceVector:

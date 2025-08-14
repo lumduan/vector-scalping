@@ -25,7 +25,10 @@ class VectorCalculations:
 
         Price Vector Calculation (Following Mathematical Formula):
         Step 1: Calculate individual price differences (displacement vector)
-        Δ₁ = P₂ - P₁, Δ₂ = P₃ - P₂, Δ₃ = P₄ - P₃, Δ₄ = P₅ - P₄
+        Δ₁ = P₂ - P₁,
+        Δ₂ = P₃ - P₂,
+        Δ₃ = P₄ - P₃,
+        Δ₄ = P₅ - P₄
 
         Step 2: Vector Magnitude (Strength)
         Magnitude = √(Δ₁² + Δ₂² + Δ₃² + Δ₄²)
@@ -101,10 +104,17 @@ class VectorCalculations:
 
         Momentum Vector Calculation (Following Mathematical Formula):
         Step 1: Price Momentum Components
-        PM₁ = C₂ - C₁, PM₂ = C₃ - C₂, PM₃ = C₄ - C₃, PM₄ = C₅ - C₄
+        PM₁ = C₂ - C₁,
+        PM₂ = C₃ - C₂,
+        PM₃ = C₄ - C₃,
+        PM₄ = C₅ - C₄
 
         Step 2: Volatility Components
-        V₁ = H₁ - L₁, V₂ = H₂ - L₂, V₃ = H₃ - L₃, V₄ = H₄ - L₄, V₅ = H₅ - L₅
+        V₁ = H₁ - L₁,
+        V₂ = H₂ - L₂,
+        V₃ = H₃ - L₃,
+        V₄ = H₄ - L₄,
+        V₅ = H₅ - L₅
 
         Step 3: Momentum Vector Magnitude
         Magnitude = √[(PM₁² + PM₂² + PM₃² + PM₄²) + (V₁² + V₂² + V₃² + V₄² + V₅²)]
