@@ -1,0 +1,1 @@
+"""Test package for vector scalping strategy."""
