@@ -1,7 +1,11 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "vector-scalping"
 version = "0.1.0"
-description = "Add your description here"
+description = "Vector Scalping Trading Strategy - Advanced multi-timeframe vector-based trading system"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -15,3 +19,6 @@ dependencies = [
     "ruff>=0.12.8",
     "tvkit>=0.1.2",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["vector_scalping"]

@@ -250,8 +250,9 @@ async def demonstrate_signal_generation(
     for i in range(20):
         # Use sliding windows to build historical data
         if len(tf5_data) > i + config.vector_period:
-            window_5m = tf5_data[-(config.vector_period + i):-(i or None)]
-            window_15m = tf15_data[-(config.vector_period + i):-(i or None)]
+            end_idx = -i if i > 0 else None
+            window_5m = tf5_data[-(config.vector_period + i):end_idx]
+            window_15m = tf15_data[-(config.vector_period + i):end_idx]
             if len(window_5m) >= config.vector_period and len(window_15m) >= config.vector_period:
                 try:
                     # Get current price (latest close)
@@ -391,10 +392,15 @@ async def main():
                 
                 logger.info("\nLATEST TECHNICAL INDICATORS:")
                 logger.info(f"  Close: {latest_indicators['close']:.5f}")
-                logger.info(f"  SMA(5): {latest_indicators['sma_5']:.5f if latest_indicators['sma_5'] else 'N/A'}")
-                logger.info(f"  SMA(20): {latest_indicators['sma_20']:.5f if latest_indicators['sma_20'] else 'N/A'}")
-                logger.info(f"  ATR(5): {latest_indicators['atr_5']:.5f if latest_indicators['atr_5'] else 'N/A'}")
-                logger.info(f"  Volatility(5): {latest_indicators['volatility_5']:.5f if latest_indicators['volatility_5'] else 'N/A'}")
+                sma_5_val = latest_indicators['sma_5']
+                sma_20_val = latest_indicators['sma_20']
+                atr_5_val = latest_indicators['atr_5']
+                vol_5_val = latest_indicators['volatility_5']
+                
+                logger.info(f"  SMA(5): {f'{sma_5_val:.5f}' if sma_5_val is not None else 'N/A'}")
+                logger.info(f"  SMA(20): {f'{sma_20_val:.5f}' if sma_20_val is not None else 'N/A'}")
+                logger.info(f"  ATR(5): {f'{atr_5_val:.5f}' if atr_5_val is not None else 'N/A'}")
+                logger.info(f"  Volatility(5): {f'{vol_5_val:.5f}' if vol_5_val is not None else 'N/A'}")
             
             # 5. Demonstrate vector calculations
             demonstrate_vector_calculations(tf5_data, tf15_data, config)
