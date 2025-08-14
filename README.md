@@ -20,12 +20,52 @@ The Vector Scalping Strategy combines price displacement vectors with momentum a
 
 ### Installation
 
+#### Option 1: Using uv (Recommended)
+
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd vector-scalping
 
-# Install dependencies using uv
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment and install dependencies
+uv sync
+
+# Activate the virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Or run directly without activating
+uv run python examples/strategy_demo.py
+```
+
+#### Option 2: Using pip
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd vector-scalping
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install package in development mode
+pip install -e .
+```
+
+#### Option 3: Using uv with pip commands
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd vector-scalping
+
+# Install dependencies using uv's pip interface
 uv pip install -r requirements.txt
 
 # Install package in development mode
