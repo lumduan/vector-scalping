@@ -127,6 +127,104 @@ if __name__ == "__main__":
 uv run python examples/strategy_demo.py
 ```
 
+## 🧪 Backtesting
+
+The strategy includes a comprehensive backtesting framework for validating performance and optimizing parameters.
+
+### Quick Start Backtesting
+
+```bash
+# Run backtest with default settings (sample EURUSD data)
+uv run python backtest/vector_scalping_vectorbt.py
+
+# Or run as a module
+uv run python -m backtest.vector_scalping_vectorbt
+```
+
+### Sample Backtest Results
+
+```
+🚀 Starting Vector Scalping Backtest
+============================================================
+📊 Generating sample EURUSD data...
+📈 Data period: 2024-01-01 to 2024-01-04 (3 days)
+📊 Total 5-min bars: 1,000
+
+🎯 Signal Statistics:
+  📈 Long signals: 20
+  📉 Short signals: 17
+  📊 Total signals: 37
+  📊 Signal frequency: 3.70%
+
+💰 Performance Metrics:
+  📈 Long strategy return: +1.10%
+  📉 Short strategy return: -0.60%
+  🎯 Combined return: +0.25%
+  🎯 Combined win rate: 65.2%
+  📊 Sharpe ratio (Long): 4.65
+```
+
+### Custom Data Backtesting
+
+```python
+import asyncio
+import pandas as pd
+from backtest.vector_scalping_vectorbt import VectorBacktester, BacktestConfig
+
+async def run_custom_backtest():
+    # Load your 5-minute OHLCV data
+    df = pd.read_csv('your_data.csv', parse_dates=['datetime'])
+    df.set_index('datetime', inplace=True)
+    
+    # Configure backtest parameters
+    config = BacktestConfig(
+        symbol="EURUSD",
+        initial_cash=10000.0,
+        take_profit_pips=20,
+        stop_loss_pips=30,
+        pip_size=0.0001,
+        percentile_threshold=60.0
+    )
+    
+    # Run backtest
+    backtester = VectorBacktester(config)
+    results = await backtester.run_backtest(data=df)
+    
+    return results
+
+# Execute backtest
+results = asyncio.run(run_custom_backtest())
+```
+
+### Key Features
+
+- **📊 Realistic Simulation**: Proper take-profit/stop-loss execution
+- **⏰ Time-based Exits**: Friday 5 PM GMT position closure
+- **📈 Multi-timeframe Analysis**: 5-min and 15-min vector combination
+- **🎯 Performance Metrics**: Win rate, Sharpe ratio, drawdown analysis
+- **🔧 Configurable Parameters**: Customize all strategy settings
+- **📋 Detailed Reporting**: Comprehensive trade-by-trade analysis
+
+### Configuration Options
+
+```python
+# Conservative approach (fewer, higher-quality signals)
+config = BacktestConfig(
+    percentile_threshold=75.0,      # Higher threshold
+    direction_threshold=0.001,      # Less sensitive
+    take_profit_pips=25            # Larger targets
+)
+
+# Aggressive scalping (more frequent signals)
+config = BacktestConfig(
+    percentile_threshold=50.0,      # Lower threshold  
+    direction_threshold=0.0003,     # More sensitive
+    take_profit_pips=15            # Smaller targets
+)
+```
+
+See **[Backtesting Guide](docs/backtesting.md)** for complete documentation, advanced usage, and parameter optimization techniques.
+
 ## 📊 Strategy Mathematics
 
 ### Price Vector Calculation
@@ -186,6 +284,8 @@ vector-scalping/
 │   ├── calculations.py       # Vector calculations
 │   ├── signals.py            # Signal generation
 │   └── data_service.py       # Data fetching service
+├── backtest/                  # Backtesting framework
+│   └── vector_scalping_vectorbt.py  # Main backtesting script
 ├── tests/                    # Test suite (49+ tests)
 │   ├── test_models.py        # Model validation tests
 │   ├── test_calculations.py  # Vector calculation tests
@@ -194,6 +294,7 @@ vector-scalping/
 ├── examples/                 # Usage examples
 │   └── strategy_demo.py      # Complete demo script
 ├── docs/                     # Documentation
+│   ├── backtesting.md        # Backtesting guide
 │   ├── modules/              # Module-specific docs
 │   └── api/                  # API reference
 └── pyproject.toml           # Project configuration
@@ -275,6 +376,7 @@ uv run python -m pytest tests/ -v
 
 Comprehensive documentation is available in the `docs/` directory:
 
+- **[Backtesting Guide](docs/backtesting.md)** - Complete backtesting framework documentation
 - **[Module Documentation](docs/modules/)** - Detailed module usage guides
 - **[API Reference](docs/api/)** - Complete API documentation
 - **[Examples](examples/)** - Working code examples
