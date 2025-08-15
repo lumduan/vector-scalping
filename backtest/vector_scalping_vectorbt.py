@@ -6,9 +6,16 @@ USAGE INSTRUCTIONS:
 1. Run the script: uv run python backtest/vector_scalping_vectorbt.py
 2. Or run as module: uv run python -m backtest.vector_scalping_vectorbt
 
+DEFAULT SYMBOL: TFEX:S50U2025 (fetches real data from TradingView using tvkit)
+
 NOTE: This implementation uses pandas/numpy for backtesting instead of vectorbt
 due to compatibility issues. For vectorbt support, install compatible versions:
 uv pip install "numpy<2.1" "numba<0.61" vectorbt
+
+DATA SOURCE:
+- Uses tvkit library to fetch real 5-minute OHLCV data from TradingView
+- Automatically resamples to 15-minute timeframe for multi-timeframe analysis
+- Falls back to synthetic data generation if real data fetching fails
 
 STRATEGY OVERVIEW:
 - Calculates price and momentum vectors for 5-min and 15-min timeframes
@@ -32,11 +39,15 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import polars as pl
 from pydantic import BaseModel, Field, field_validator
 
-# Import existing models and calculations  
+# Import existing models and calculations
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from tvkit.api.chart.models.ohlcv import OHLCVBar
+from tvkit.api.chart.ohlcv import OHLCV
+from tvkit.export import DataExporter
 from vector_scalping.calculations import VectorCalculations
 from vector_scalping.models import (
     OHLCVData,
@@ -50,12 +61,14 @@ warnings.filterwarnings("ignore")
 class BacktestConfig(BaseModel):
     """Configuration for vectorbt backtesting."""
 
-    symbol: str = Field("EURUSD", description="Trading symbol")
+    symbol: str = Field("TFEX:S50U2025", description="Trading symbol")
     initial_cash: float = Field(10000.0, description="Initial capital")
     pip_value: float = Field(1.0, description="Value per pip for position sizing")
     take_profit_pips: int = Field(20, description="Take profit in pips")
     stop_loss_pips: int = Field(30, description="Stop loss in pips")
-    pip_size: float = Field(0.0001, description="Pip size (0.0001 for 4-decimal pairs)")
+    pip_size: float = Field(
+        0.01, description="Pip size (0.01 for 2-decimal pairs like futures)"
+    )
     vector_period: int = Field(5, description="Vector calculation period")
     percentile_threshold: float = Field(60.0, description="Signal strength threshold")
     direction_threshold: float = Field(
@@ -90,9 +103,74 @@ class VectorBacktester:
             is_decimal_4=(config.pip_size == 0.0001),
         )
 
+    async def fetch_real_data(self, symbol: str, n_bars: int = 1000) -> pd.DataFrame:
+        """
+        Fetch real OHLCV data from TradingView using tvkit.
+
+        Args:
+            symbol: Trading symbol (e.g., "TFEX:S50U2025")
+            n_bars: Number of bars to fetch
+
+        Returns:
+            DataFrame with OHLCV data and datetime index
+
+        Raises:
+            ValueError: If unable to fetch sufficient data
+        """
+        try:
+            bars_5min: List[OHLCVBar] = []
+
+            async with OHLCV() as client:
+                bars_5min = await client.get_historical_ohlcv(
+                    symbol, interval="5", bars_count=n_bars
+                )
+
+            if len(bars_5min) < 100:  # Minimum viable data
+                raise ValueError(
+                    f"Insufficient data: only {len(bars_5min)} bars fetched"
+                )
+
+            # Convert to pandas DataFrame
+            exporter = DataExporter()
+            df_polars: pl.DataFrame = await exporter.to_polars(
+                bars_5min, add_analysis=False
+            )
+
+            # Convert polars to pandas with proper datetime index
+            df_pandas = df_polars.to_pandas()
+
+            # Convert timestamp to datetime index (handle different timestamp formats)
+            if 'timestamp' in df_pandas.columns:
+                # Try different timestamp parsing methods
+                if df_pandas['timestamp'].dtype == 'object':
+                    # String timestamp format (ISO 8601)
+                    df_pandas['datetime'] = pd.to_datetime(df_pandas['timestamp'])
+                else:
+                    # Unix timestamp format
+                    df_pandas['datetime'] = pd.to_datetime(df_pandas['timestamp'], unit='s')
+            else:
+                # If timestamp column not found, create sequential datetime index
+                start_time = datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc)
+                df_pandas['datetime'] = pd.date_range(start=start_time, periods=len(df_pandas), freq="5T")
+            
+            df_pandas = df_pandas.set_index('datetime')
+
+            # Keep only OHLCV columns (handle case where timestamp might still be present)
+            available_cols = [col for col in ['open', 'high', 'low', 'close', 'volume'] if col in df_pandas.columns]
+            df_pandas = df_pandas[available_cols]
+
+            # Sort by datetime to ensure proper order
+            df_pandas = df_pandas.sort_index()
+
+            return df_pandas
+
+        except Exception as e:
+            raise ValueError(f"Failed to fetch real data for {symbol}: {e}") from e
+
     def generate_sample_data(self, n_bars: int = 1000) -> pd.DataFrame:
         """
-        Generate sample EURUSD data for backtesting.
+        Generate sample data for backtesting (fallback method).
+        This method is kept for backward compatibility and testing.
 
         Args:
             n_bars: Number of bars to generate
@@ -100,13 +178,13 @@ class VectorBacktester:
         Returns:
             DataFrame with OHLCV data and datetime index
         """
-        # Create realistic EURUSD price series with trends and volatility
+        # Create realistic price series for futures-style data
         np.random.seed(42)  # For reproducible results
 
-        # Base parameters for EURUSD
-        initial_price = 1.0850
-        trend_strength = 0.0001
-        volatility = 0.0005
+        # Base parameters adapted for futures (higher prices, different volatility)
+        initial_price = 2650.0  # Typical S&P 500 futures price level
+        trend_strength = 5.0  # Larger moves for futures
+        volatility = 15.0  # Higher volatility
 
         # Generate price series with trend and mean reversion
         returns = []
@@ -120,7 +198,9 @@ class VectorBacktester:
             random_return = np.random.normal(0, volatility)
 
             # Mean reversion component
-            mean_reversion = -0.1 * (price - initial_price) * volatility
+            mean_reversion = (
+                -0.01 * (price - initial_price) * volatility / initial_price
+            )
 
             # Combine components
             total_return = trend + random_return + mean_reversion
@@ -150,8 +230,10 @@ class VectorBacktester:
             high = max(open_price, high, close)
             low = min(open_price, low, close)
 
-            # Generate volume (correlated with volatility)
-            volume = np.random.uniform(1000, 5000) * (1 + abs(returns[i]) / volatility)
+            # Generate volume (appropriate for futures)
+            volume = np.random.uniform(10000, 50000) * (
+                1 + abs(returns[i]) / volatility
+            )
 
             data.append(
                 {
@@ -474,7 +556,9 @@ class VectorBacktester:
                         "pnl_pips": pnl_pips,
                         "pnl_dollars": pnl_dollars,
                         "exit_reason": exit_reason,
-                        "duration_minutes": (pd.Timestamp(timestamp) - pd.Timestamp(entry_time)).total_seconds()  # type: ignore[arg-type]
+                        "duration_minutes": (
+                            pd.Timestamp(timestamp) - pd.Timestamp(entry_time)  # type: ignore[arg-type]
+                        ).total_seconds()
                         / 60,
                         "is_winner": pnl_dollars > 0,
                     }
@@ -561,25 +645,43 @@ class VectorBacktester:
             "total_pnl": total_pnl,
         }
 
-    async def run_backtest(self, data: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
+    async def run_backtest(
+        self,
+        data: Optional[pd.DataFrame] = None,
+        use_real_data: bool = True,
+        n_bars: int = 1000,
+    ) -> Dict[str, Any]:
         """
         Run the complete vector scalping backtest.
 
         Args:
-            data: Optional OHLCV data (if None, generates sample data)
+            data: Optional OHLCV data (if None, fetches real data or generates sample data)
+            use_real_data: Whether to fetch real data from TradingView (default: True)
+            n_bars: Number of bars to fetch/generate
 
         Returns:
             Dictionary with backtest results and performance metrics
         """
-        print("🚀 Starting Vector Scalping Backtest with vectorbt")
+        print("🚀 Starting Vector Scalping Backtest")
         print("=" * 60)
 
-        # Use provided data or generate sample data
+        # Use provided data, fetch real data, or generate sample data
         if data is None:
-            print("📊 Generating sample EURUSD data...")
-            df_5min = self.generate_sample_data(1000)
+            if use_real_data:
+                print(f"📊 Fetching real data for {self.config.symbol}...")
+                try:
+                    df_5min = await self.fetch_real_data(self.config.symbol, n_bars)
+                    print(f"✅ Successfully fetched {len(df_5min)} bars of real data")
+                except ValueError as e:
+                    print(f"⚠️  Failed to fetch real data: {e}")
+                    print("📊 Falling back to sample data...")
+                    df_5min = self.generate_sample_data(n_bars)
+            else:
+                print(f"📊 Generating sample data for {self.config.symbol}...")
+                df_5min = self.generate_sample_data(n_bars)
         else:
             df_5min = data.copy()
+            print(f"📊 Using provided data ({len(df_5min)} bars)")
 
         print(f"📈 Data period: {df_5min.index[0]} to {df_5min.index[-1]}")
         print(f"📊 Total 5-min bars: {len(df_5min)}")
@@ -603,7 +705,7 @@ class VectorBacktester:
         print(f"  📉 Short signals: {short_signals}")
         print(f"  📊 Total signals: {long_signals + short_signals}")
 
-        # Create entries and exits 
+        # Create entries and exits
         entries = signals_df["signal"] == 1  # LONG entries
         short_entries = signals_df["signal"] == -1  # SHORT entries
 
@@ -733,14 +835,14 @@ class VectorBacktester:
 
 async def main():
     """Main execution function."""
-    # Default configuration for EUR/USD
+    # Default configuration for TFEX:S50U2025 futures
     config = BacktestConfig(
-        symbol="EURUSD",
+        symbol="TFEX:S50U2025",
         initial_cash=10000.0,
         pip_value=1.0,
         take_profit_pips=20,
         stop_loss_pips=30,
-        pip_size=0.0001,  # 4-decimal pair
+        pip_size=0.01,  # 2-decimal pair for futures
         vector_period=5,
         percentile_threshold=60.0,
         direction_threshold=0.0005,
